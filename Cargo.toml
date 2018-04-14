@@ -1,0 +1,6 @@
+[package]
+name = "coolc-rs"
+version = "0.1.0"
+authors = ["Martynas Pumputis <martynasp@gmail.com>"]
+
+[dependencies]
