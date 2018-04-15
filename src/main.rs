@@ -8,9 +8,6 @@ use std::collections::HashMap;
 
 // TODO store strings in a symbol table
 
-struct Token {
-}
-
 #[derive(Debug, Clone)]
 enum TokenType {
     // keywords
@@ -53,6 +50,7 @@ enum TokenType {
     Error(String),
 }
 
+#[derive(Debug)]
 struct Error {
     lineno: usize,
     pos: usize,
@@ -103,70 +101,6 @@ impl<T: io::Read> Scanner<T> {
             keywords: keywords,
             errors: Vec::new(),
         }
-    }
-
-    // TODO implement iterator
-    fn next(&mut self) -> TokenType {
-        self.skip_whitespaces();
-
-        if self.is_digit() {
-            let val = self.scan_number();
-            return TokenType::IntConst(val);
-        }
-        else if self.is_letter() {
-            let is_obj = self.is_uppercase();
-            let val = self.scan_identifier();
-
-            if is_obj {
-                return TokenType::ObjectID(val);
-            }
-            else if val == "true" {
-                return TokenType::BoolConst(true);
-            }
-            else if val == "false" {
-                return TokenType::BoolConst(false);
-            }
-            else if let Some(ttype) = self.keywords.get(&val) {
-                return ttype.clone();
-            } else {
-                return TokenType::TypeID(val);
-            }
-        }
-        else if self.is_symbol() {
-            let ch = self.ch;
-            self.read_char();
-
-            if !self.is_symbol() {
-                return TokenType::SSymbol(ch);
-            }
-            else if ch == '<' && self.ch == '-' {
-                return TokenType::Assign;
-            }
-            else if ch == '=' && self.ch == '>' {
-                return TokenType::DArrow;
-            }
-            else if ch == '<' && self.ch == '=' {
-                return TokenType::Le;
-            }
-            else if ch == '(' && ch == '*' {
-                self.skip_comment();
-                return self.next();
-            }
-            else if ch == '*' && ch == ')' {
-                self.err("Unmateched *)");
-                return self.next();
-            }
-        }
-        else if self.ch == '"' {
-            panic!("NYI scan_string");
-        }
-        else if self.is_eof() {
-            panic!("NYI return None");
-        }
-
-        let ch = self.ch;
-        self.err(&format!("Invalid char: {}", ch));
-        return self.next();
     }
 
     fn err(&mut self, msg: &str) {
@@ -256,13 +190,81 @@ impl<T: io::Read> Scanner<T> {
     }
 }
 
+impl<T: io::Read> Iterator for Scanner<T> {
+    type Item = TokenType;
+
+    fn next(&mut self) -> Option<TokenType> {
+        self.skip_whitespaces();
+
+        if self.is_digit() {
+            let val = self.scan_number();
+            return Some(TokenType::IntConst(val));
+        }
+        else if self.is_letter() {
+            let is_obj = self.is_uppercase();
+            let val = self.scan_identifier();
+
+            if is_obj {
+                return Some(TokenType::ObjectID(val));
+            }
+            else if val == "true" {
+                return Some(TokenType::BoolConst(true));
+            }
+            else if val == "false" {
+                return Some(TokenType::BoolConst(false));
+            }
+            else if let Some(ttype) = self.keywords.get(&val) {
+                return Some(ttype.clone());
+            } else {
+                return Some(TokenType::TypeID(val));
+            }
+        }
+        else if self.is_symbol() {
+            let ch = self.ch;
+            self.read_char();
+
+            if !self.is_symbol() {
+                return Some(TokenType::SSymbol(ch));
+            }
+            else if ch == '<' && self.ch == '-' {
+                return Some(TokenType::Assign);
+            }
+            else if ch == '=' && self.ch == '>' {
+                return Some(TokenType::DArrow);
+            }
+            else if ch == '<' && self.ch == '=' {
+                return Some(TokenType::Le);
+            }
+            else if ch == '(' && ch == '*' {
+                self.skip_comment();
+                return self.next();
+            }
+            else if ch == '*' && ch == ')' {
+                self.err("Unmateched *)");
+                return self.next();
+            }
+        }
+        else if self.ch == '"' {
+            panic!("NYI scan_string");
+        }
+        else if self.is_eof() {
+            return None;
+        }
+
+        let ch = self.ch;
+        self.err(&format!("Invalid char: {}", ch));
+        return self.next();
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let filename = &args[1];
     let file = File::open(filename).unwrap();
 
-    let mut s = Scanner::new(file.chars());
-    println!("scanning...");
-    let token = s.next();
-    println!("done; token={:?}", token);
+    let mut scanner = Scanner::new(file.chars());
+    for token in scanner {
+        println!("token: {:?}", token);
+    }
+    //println!("errors: {:?}", scanner.errors);
 }
