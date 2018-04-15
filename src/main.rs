@@ -6,49 +6,51 @@ use std::env;
 use std::fs::File;
 use std::collections::HashMap;
 
+// TODO store strings in a symbol table
+
 struct Token {
 }
 
 #[derive(Debug, Clone)]
 enum TokenType {
     // keywords
-    CLASS,
-    ELSE,
-    FI,
-    IF,
-    IN,
-    INHERITS,
-    LET,
-    LOOP,
-    POOL,
-    THEN,
-    WHILE,
-    CASE,
-    ESAC,
-    OF,
-    NEW,
-    ISVOID,
-    NOT,
+    Class,
+    Else,
+    Fi,
+    If,
+    In,
+    Inherits,
+    Let,
+    Loop,
+    Pool,
+    Then,
+    While,
+    Case,
+    Esac,
+    Of,
+    New,
+    Isvoid,
+    Not,
     // integer
-    INT_CONST(String),
+    IntConst(String),
     // bool
-    BOOL_CONST(bool),
+    BoolConst(bool),
     // type
-    TYPEID(String),
+    TypeID(String),
     // object
-    OBJECTID(String),
+    ObjectID(String),
     // single char symbol (e.g. ";")
-    SSYMBOL(char),
+    SSymbol(char),
     // <- ???
-    ASSIGN,
+    Assign,
     // => ???
-    DARROW,
+    DArrow,
     // <= ??
-    LE,
+    Le,
     // string
-    STR_CONST(String),
+    StrConst(String),
     // scanner err
-    ERROR(String),
+    Error(String),
 }
 
 struct Scanner<T> {
@@ -62,23 +64,23 @@ struct Scanner<T> {
 impl<T: io::Read> Scanner<T> {
     fn new(read: Chars<T>) -> Scanner<T> {
         let mut keywords = HashMap::new();
-        keywords.insert("class".to_string(), TokenType::CLASS);
-        keywords.insert("else".to_string(), TokenType::ELSE);
-        keywords.insert("fi".to_string(), TokenType::FI);
-        keywords.insert("if".to_string(), TokenType::IF);
-        keywords.insert("in".to_string(), TokenType::IN);
-        keywords.insert("inherits".to_string(), TokenType::INHERITS);
-        keywords.insert("let".to_string(), TokenType::LET);
-        keywords.insert("loop".to_string(), TokenType::LOOP);
-        keywords.insert("pool".to_string(), TokenType::POOL);
-        keywords.insert("then".to_string(), TokenType::THEN);
-        keywords.insert("while".to_string(), TokenType::WHILE);
-        keywords.insert("case".to_string(), TokenType::CASE);
-        keywords.insert("esac".to_string(), TokenType::ESAC);
-        keywords.insert("of".to_string(), TokenType::OF);
-        keywords.insert("new".to_string(), TokenType::NEW);
-        keywords.insert("isvoid".to_string(), TokenType::ISVOID);
-        keywords.insert("not".to_string(), TokenType::NOT);
+        keywords.insert("class".to_string(), TokenType::Class);
+        keywords.insert("else".to_string(), TokenType::Else);
+        keywords.insert("fi".to_string(), TokenType::Fi);
+        keywords.insert("if".to_string(), TokenType::If);
+        keywords.insert("in".to_string(), TokenType::In);
+        keywords.insert("inherits".to_string(), TokenType::Inherits);
+        keywords.insert("let".to_string(), TokenType::Let);
+        keywords.insert("loop".to_string(), TokenType::Loop);
+        keywords.insert("pool".to_string(), TokenType::Pool);
+        keywords.insert("then".to_string(), TokenType::Then);
+        keywords.insert("while".to_string(), TokenType::While);
+        keywords.insert("case".to_string(), TokenType::Case);
+        keywords.insert("esac".to_string(), TokenType::Esac);
+        keywords.insert("of".to_string(), TokenType::Of);
+        keywords.insert("new".to_string(), TokenType::New);
+        keywords.insert("isvoid".to_string(), TokenType::Isvoid);
+        keywords.insert("not".to_string(), TokenType::Not);
 
         Scanner{
             read: read,
@@ -96,25 +98,25 @@ impl<T: io::Read> Scanner<T> {
 
         if self.is_digit() {
             let val = self.scan_number();
-            return TokenType::INT_CONST(val);
+            return TokenType::IntConst(val);
         }
         else if self.is_letter() {
             let is_obj = self.is_uppercase();
             let val = self.scan_identifier();
 
             if is_obj {
-                return TokenType::OBJECTID(val);
+                return TokenType::ObjectID(val);
             }
             else if val == "true" {
-                return TokenType::BOOL_CONST(true);
+                return TokenType::BoolConst(true);
             }
             else if val == "false" {
-                return TokenType::BOOL_CONST(false);
+                return TokenType::BoolConst(false);
             }
             else if let Some(ttype) = self.keywords.get(&val) {
                 return ttype.clone();
             } else {
-                return TokenType::TYPEID(val);
+                return TokenType::TypeID(val);
             }
         }
         else if self.is_symbol() {
@@ -122,19 +124,23 @@ impl<T: io::Read> Scanner<T> {
             self.read_char();
 
             if !self.is_symbol() {
-                return TokenType::SSYMBOL(ch);
+                return TokenType::SSymbol(ch);
             }
             else if ch == '<' && self.ch == '-' {
-                return TokenType::ASSIGN;
+                return TokenType::Assign;
             }
             else if ch == '=' && self.ch == '>' {
-                return TokenType::DARROW;
+                return TokenType::DArrow;
             }
             else if ch == '<' && self.ch == '=' {
-                return TokenType::LE;
+                return TokenType::Le;
             }
             else if ch == '(' && ch == '*' {
-                panic!("NYI skip_comment");
+                match self.skip_comment() {
+                    Ok(()) => { },
+                    Err(e) => { panic!("skip_comment: {}", e); },
+                }
+                return self.next();
             }
             else if ch == '*' && ch == ')' {
                 panic!("ERROR invalid comment");
@@ -147,7 +153,7 @@ impl<T: io::Read> Scanner<T> {
             panic!("NYI return None");
         }
 
-        TokenType::LE
+        panic!("ERROR invalid char");
     }
 
     fn scan_number(&mut self) -> String {
@@ -177,7 +183,7 @@ impl<T: io::Read> Scanner<T> {
             Some(Ok(ch)) => {
                 self.ch = ch;
             },
-            _ => panic!("read_char"),
+            Some(err) => panic!("read_char: {:?}", err),
         }
         self.pos += 1;
     }
@@ -208,7 +214,26 @@ impl<T: io::Read> Scanner<T> {
 
     fn skip_whitespaces(&mut self) {
         while self.ch == ' ' || self.ch == '\t' || self.ch == '\n' {
-                self.read_char();
+            self.read_char();
+        }
+    }
+
+    fn skip_comment(&mut self) -> Result<(), &str> {
+        let mut star = false;
+        loop {
+            self.read_char();
+
+            if self.ch == '*' {
+                star = true;
+            }
+            else if star && self.ch == ')' {
+                return Ok(());
+            }
+            else if self.is_eof() {
+                panic!("NYI: return ERROR");
+            } else {
+                star = false;
+            }
         }
     }
 }
