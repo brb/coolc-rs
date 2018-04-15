@@ -53,12 +53,25 @@ enum TokenType {
     Error(String),
 }
 
+struct Error {
+    lineno: usize,
+    pos: usize,
+    msg: String,
+}
+
+impl Error {
+    fn new(lineno: usize, pos: usize, msg: String) -> Self {
+        Error{lineno: lineno, pos: pos, msg: msg}
+    }
+}
+
 struct Scanner<T> {
     read: Chars<T>,
     ch: char,
     pos: usize,
     lineno: usize,
     keywords: HashMap<String, TokenType>,
+    errors: Vec<Error>,
 }
 
 impl<T: io::Read> Scanner<T> {
@@ -88,7 +101,7 @@ impl<T: io::Read> Scanner<T> {
             pos: 0,
             lineno: 1,
             keywords: keywords,
-            // err ?
+            errors: Vec::new(),
         }
     }
 
@@ -136,14 +149,12 @@ impl<T: io::Read> Scanner<T> {
                 return TokenType::Le;
             }
             else if ch == '(' && ch == '*' {
-                match self.skip_comment() {
-                    Ok(()) => { },
-                    Err(e) => { panic!("skip_comment: {}", e); },
-                }
+                self.skip_comment();
                 return self.next();
             }
             else if ch == '*' && ch == ')' {
-                panic!("ERROR invalid comment");
+                self.err("Unmateched *)");
+                return self.next();
             }
         }
         else if self.ch == '"' {
@@ -153,7 +164,14 @@ impl<T: io::Read> Scanner<T> {
             panic!("NYI return None");
         }
 
-        panic!("ERROR invalid char");
+        let ch = self.ch;
+        self.err(&format!("Invalid char: {}", ch));
+        return self.next();
+    }
+
+    fn err(&mut self, msg: &str) {
+        let err = Error::new(self.lineno, self.pos, msg.to_string());
+        self.errors.push(err);
     }
 
     fn scan_number(&mut self) -> String {
@@ -218,7 +236,7 @@ impl<T: io::Read> Scanner<T> {
         }
     }
 
-    fn skip_comment(&mut self) -> Result<(), &str> {
+    fn skip_comment(&mut self) {
         let mut star = false;
         loop {
             self.read_char();
@@ -227,10 +245,10 @@ impl<T: io::Read> Scanner<T> {
                 star = true;
             }
             else if star && self.ch == ')' {
-                return Ok(());
+                break;
             }
             else if self.is_eof() {
-                panic!("NYI: return ERROR");
+                self.err("EOF in comment");
             } else {
                 star = false;
             }
