@@ -7,6 +7,8 @@ use std::fs::File;
 use std::collections::HashMap;
 
 // TODO store strings in a symbol table
+// TODO tests
+// TODO mv scanner/*
 
 #[derive(Debug, Clone)]
 enum TokenType {
@@ -188,6 +190,24 @@ impl<T: io::Read> Scanner<T> {
             }
         }
     }
+
+    fn scan_string(&mut self) -> String {
+        let mut val = String::new();
+        loop {
+            self.read_char();
+
+            if self.ch == '"' {
+                break;
+            }
+            else if self.is_eof() {
+                self.err("EOF in string constant");
+                break;
+            } else {
+                val.push(self.ch);
+            }
+        }
+        return val;
+    }
 }
 
 impl<T: io::Read> Iterator for Scanner<T> {
@@ -198,11 +218,13 @@ impl<T: io::Read> Iterator for Scanner<T> {
 
         if self.is_digit() {
             let val = self.scan_number();
+            self.read_char();
             return Some(TokenType::IntConst(val));
         }
         else if self.is_letter() {
             let is_obj = self.is_uppercase();
             let val = self.scan_identifier();
+            self.read_char();
 
             if is_obj {
                 return Some(TokenType::ObjectID(val));
@@ -227,25 +249,32 @@ impl<T: io::Read> Iterator for Scanner<T> {
                 return Some(TokenType::SSymbol(ch));
             }
             else if ch == '<' && self.ch == '-' {
+                self.read_char();
                 return Some(TokenType::Assign);
             }
             else if ch == '=' && self.ch == '>' {
+                self.read_char();
                 return Some(TokenType::DArrow);
             }
             else if ch == '<' && self.ch == '=' {
+                self.read_char();
                 return Some(TokenType::Le);
             }
-            else if ch == '(' && ch == '*' {
+            else if ch == '(' && self.ch == '*' {
                 self.skip_comment();
+                self.read_char();
                 return self.next();
             }
-            else if ch == '*' && ch == ')' {
+            else if ch == '*' && self.ch == ')' {
                 self.err("Unmateched *)");
+                self.read_char();
                 return self.next();
             }
         }
         else if self.ch == '"' {
-            panic!("NYI scan_string");
+            let val =self.scan_string();
+            self.read_char();
+            return Some(TokenType::StrConst(val));
         }
         else if self.is_eof() {
             return None;
@@ -253,6 +282,7 @@ impl<T: io::Read> Iterator for Scanner<T> {
 
         let ch = self.ch;
         self.err(&format!("Invalid char: {}", ch));
+        self.read_char();
         return self.next();
     }
 }
